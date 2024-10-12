@@ -4,3 +4,7 @@ einops==0.6.0
 scikit-learn==1.4.1.post1
 pandas==2.2.1
 torch
+causal-conv1d>=1.4.0
+mamba-ssm
+mamba-ssm[causal-conv1d]
+mamba-ssm[dev]
