@@ -55,6 +55,7 @@ class ModelArgs:
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Mamba(nn.Module):
     def __init__(self, args: ModelArgs, num_classes: int):
@@ -72,18 +73,16 @@ class Mamba(nn.Module):
         self.norm_f = RMSNorm(args.d_model)
 
         # Fully connected layer for classification
-        self.fc = nn.Linear(args.d_model, num_classes)  # Changed from lm_head to fc
-
-        # Weight tying, if required
-        # self.fc.weight = self.embedding.weight  # Uncomment this if you want weight tying
+        self.fc = nn.Linear(args.d_model, num_classes)
 
     def forward(self, input_ids):
         """
         Args:
-            input_ids (long tensor): shape (b, l)    (See Glossary at top for definitions of b, l, d_in, n...)
+            input_ids (long tensor): shape (b, l)
 
         Returns:
             logits: shape (b, num_classes)
+            probabilities: shape (b, num_classes) (Softmax probabilities)
         """
         x = self.embedding(input_ids)
         
@@ -93,11 +92,12 @@ class Mamba(nn.Module):
         x = self.norm_f(x)
 
         # Take the last time step output for classification
-        x = x[:, -1, :]  # Assuming you want the last time step's output
+        x = x[:, -1, :]
 
-        logits = self.fc(x)  # Outputs logits for classification
+        logits = self.fc(x)
+        probabilities = F.softmax(logits, dim=-1)  # Compute softmax probabilities
 
-        return logits
+        return logits, probabilities  # Return both logits and probabilities
 
     
     @staticmethod
