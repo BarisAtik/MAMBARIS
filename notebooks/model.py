@@ -27,6 +27,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dataclasses import dataclass
 from einops import rearrange, repeat, einsum
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from dataclasses import dataclass, Union
+import math
 
 
 @dataclass
@@ -36,7 +41,7 @@ class ModelArgs:
     vocab_size: int
     d_state: int = 16
     expand: int = 2
-    dt_rank: Union[int, str] = 'auto'
+    dt_rank: int = 0
     d_conv: int = 4 
     pad_vocab_size_multiple: int = 8
     conv_bias: bool = True
@@ -51,11 +56,6 @@ class ModelArgs:
         if self.vocab_size % self.pad_vocab_size_multiple != 0:
             self.vocab_size += (self.pad_vocab_size_multiple
                                 - self.vocab_size % self.pad_vocab_size_multiple)
-
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 class Mamba(nn.Module):
     def __init__(self, args: ModelArgs, num_classes: int):
@@ -148,6 +148,55 @@ class Mamba(nn.Module):
         
         return model
 
+class ImageMamba(nn.Module):
+    def __init__(self, args: ModelArgs, num_classes: int):
+        """Modified Mamba model for image classification."""
+        super().__init__()
+        self.args = args
+        
+        # Replace Embedding with CNN layers for image processing
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=args.d_model, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=args.d_model, out_channels=args.d_model * 2, kernel_size=3, padding=1)
+        
+        # Add residual blocks (optional)
+        self.layers = nn.ModuleList([ResidualBlock(args) for _ in range(args.n_layer)])
+        
+        # Normalization layer
+        self.norm_f = nn.BatchNorm2d(args.d_model * 2)
+
+        # Pooling and fully connected layer for classification
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(args.d_model * 2, num_classes)
+
+    def forward(self, x):
+        """
+        Args:
+            x (tensor): shape (batch_size, channels, height, width)
+
+        Returns:
+            logits: shape (batch_size, num_classes)
+            probabilities: shape (batch_size, num_classes)
+        """
+        # Pass through convolutional layers
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        
+        # Optionally, pass through residual blocks
+        for layer in self.layers:
+            x = layer(x)
+        
+        # Apply normalization
+        x = self.norm_f(x)
+
+        # Pool and flatten for classification
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)  # Flatten
+
+        # Fully connected classification layer
+        logits = self.fc(x)
+        probabilities = F.softmax(logits, dim=-1)
+
+        return logits, probabilities
 
 class ResidualBlock(nn.Module):
     def __init__(self, args: ModelArgs):
