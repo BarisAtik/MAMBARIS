@@ -53,32 +53,36 @@ class ModelArgs:
                                 - self.vocab_size % self.pad_vocab_size_multiple)
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class Mamba(nn.Module):
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, num_classes: int):
         """Full Mamba model."""
         super().__init__()
         self.args = args
         
+        # Embedding layer
         self.embedding = nn.Embedding(args.vocab_size, args.d_model)
+        
+        # Residual blocks
         self.layers = nn.ModuleList([ResidualBlock(args) for _ in range(args.n_layer)])
+        
+        # Normalization layer
         self.norm_f = RMSNorm(args.d_model)
 
-        self.lm_head = nn.Linear(args.d_model, args.vocab_size, bias=False)
-        self.lm_head.weight = self.embedding.weight  # Tie output projection to embedding weights.
-                                                     # See "Weight Tying" paper
-
+        # Fully connected layer for classification
+        self.fc = nn.Linear(args.d_model, num_classes)
 
     def forward(self, input_ids):
         """
         Args:
-            input_ids (long tensor): shape (b, l)    (See Glossary at top for definitions of b, l, d_in, n...)
-    
+            input_ids (long tensor): shape (b, l)
+
         Returns:
-            logits: shape (b, l, vocab_size)
-
-        Official Implementation:
-            class MambaLMHeadModel, https://github.com/state-spaces/mamba/blob/main/mamba_ssm/models/mixer_seq_simple.py#L173
-
+            logits: shape (b, num_classes)
+            probabilities: shape (b, num_classes) (Softmax probabilities)
         """
         x = self.embedding(input_ids)
         
@@ -86,9 +90,14 @@ class Mamba(nn.Module):
             x = layer(x)
             
         x = self.norm_f(x)
-        logits = self.lm_head(x)
 
-        return logits
+        # Take the last time step output for classification
+        x = x[:, -1, :]
+
+        logits = self.fc(x)
+        probabilities = F.softmax(logits, dim=-1)  # Compute softmax probabilities
+
+        return logits, probabilities  # Return both logits and probabilities
 
     
     @staticmethod
