@@ -30,9 +30,9 @@ from einops import rearrange, repeat, einsum
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from dataclasses import dataclass, Union
 import math
-
+from dataclasses import dataclass
+from typing import Union
 
 @dataclass
 class ModelArgs:
@@ -150,52 +150,29 @@ class Mamba(nn.Module):
 
 class ImageMamba(nn.Module):
     def __init__(self, args: ModelArgs, num_classes: int):
-        """Modified Mamba model for image classification."""
         super().__init__()
         self.args = args
-        
-        # Replace Embedding with CNN layers for image processing
+        # Define conv layers
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=args.d_model, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(in_channels=args.d_model, out_channels=args.d_model * 2, kernel_size=3, padding=1)
-        
-        # Add residual blocks (optional)
-        self.layers = nn.ModuleList([ResidualBlock(args) for _ in range(args.n_layer)])
-        
+        # Residual blocks
+        self.layers = nn.ModuleList([ImageResidualBlock(args) for _ in range(args.n_layer)])
         # Normalization layer
         self.norm_f = nn.BatchNorm2d(args.d_model * 2)
-
-        # Pooling and fully connected layer for classification
+        # Pooling and FC layers
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(args.d_model * 2, num_classes)
 
     def forward(self, x):
-        """
-        Args:
-            x (tensor): shape (batch_size, channels, height, width)
-
-        Returns:
-            logits: shape (batch_size, num_classes)
-            probabilities: shape (batch_size, num_classes)
-        """
-        # Pass through convolutional layers
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
-        
-        # Optionally, pass through residual blocks
         for layer in self.layers:
             x = layer(x)
-        
-        # Apply normalization
         x = self.norm_f(x)
-
-        # Pool and flatten for classification
         x = self.pool(x)
-        x = x.view(x.size(0), -1)  # Flatten
-
-        # Fully connected classification layer
+        x = x.view(x.size(0), -1)
         logits = self.fc(x)
         probabilities = F.softmax(logits, dim=-1)
-
         return logits, probabilities
 
 class ResidualBlock(nn.Module):
@@ -231,7 +208,16 @@ class ResidualBlock(nn.Module):
 
         return output
             
+class ImageResidualBlock(nn.Module):
+    def __init__(self, args):
+        super(ImageResidualBlock, self).__init__()
+        self.eps = 1e-6
+        self.weight = nn.Parameter(torch.ones(args.d_model * 2))  # Properly initialize self.weight
+        self.conv = nn.Conv2d(args.d_model * 2, args.d_model * 2, kernel_size=3, padding=1)
 
+    def forward(self, x):
+        output = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight.view(1, -1, 1, 1)
+        return output
 class MambaBlock(nn.Module):
     def __init__(self, args: ModelArgs):
         """A single Mamba block, as described in Figure 3 in Section 3.4 in the Mamba paper [1]."""
