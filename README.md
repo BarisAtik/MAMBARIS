@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository involves training a **Mamba model** on the **Nursery dataset** and then performing an **inference attack** on the trained model. This project is divided into two main phases:
+This repository involves training a **Mamba model** on the **Nursery dataset** and  **CIFAR10 dataset**, then performing an **inference attack** on the trained model. This project is divided into two main phases:
 
 1. **Phase 1: Training a Mamba Model**  
    In this phase, I will train a Mamba model, which is a machine learning model which becomes more and more relavant due to the paper [Mamba: Linear-Time Sequence Modeling with Selective State Spaces](https://arxiv.org/abs/2312.00752). It will be trained on the Nursery dataset, which is a classic dataset for evaluating models in classification tasks, using privacy sensitive data which will be interesting for phase 2.
