@@ -1,4 +1,4 @@
-# Nursery Dataset and Mamba Model: Inference Attack Study
+# Nursery Dataset and CIFAR10, Mamba Model: Inference Attack Study
 
 ## Overview
 
