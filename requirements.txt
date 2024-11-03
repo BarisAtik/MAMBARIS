@@ -6,4 +6,3 @@ pandas==2.2.1
 torch
 numpy
 keras==2.13.1
-tensorflow
