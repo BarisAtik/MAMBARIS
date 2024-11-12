@@ -1,3 +1,6 @@
+matplotlib
+seaborn
+scipy
 ucimlrepo
 transformers==4.30.0
 einops==0.6.0
