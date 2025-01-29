@@ -1,7 +1,8 @@
 import torch
 import numpy as np
-from torch.utils.data import DataLoader, TensorDataset
 import torchvision.transforms as transforms
+
+from torch.utils.data import DataLoader, TensorDataset
 from torchvision.datasets import CIFAR10
 
 def load_cifar10(batch_size=64, seed=42):
