@@ -1,4 +1,5 @@
 model_checkpoints/
+mamba_checkpoints/
 cnn_checkpoints/
 model_checkpoints_ext_old/
 model_checkpoints_extended/
