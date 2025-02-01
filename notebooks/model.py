@@ -34,6 +34,40 @@ import math
 from dataclasses import dataclass
 from typing import Union
 
+# Make this an import soon too
+class SmallerComparableCNN(nn.Module):
+    def __init__(self):
+        super(SmallerComparableCNN, self).__init__()
+        # Reduced initial channels and total layers
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)  # Reduced from 64 to 32
+        self.bn1 = nn.BatchNorm2d(32)
+        
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # Reduced from 128 to 64
+        self.bn2 = nn.BatchNorm2d(64)
+        
+        # Global average pooling and final dense layer
+        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(64, 10)  # Changed input features to match last conv layer
+        
+    def forward(self, x):
+        # First block
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.max_pool2d(x, 2)
+        
+        # Second block
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.max_pool2d(x, 2)
+        
+        # Global average pooling
+        x = self.avg_pool(x)
+        x = x.view(x.size(0), -1)
+        
+        # Final classification
+        logits = self.fc(x)
+        probabilities = F.softmax(logits, dim=-1)
+        
+        return logits, probabilities
+
 @dataclass
 class ModelArgs:
     d_model: int
