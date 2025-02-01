@@ -13,21 +13,40 @@ def save_checkpoint(model, optimizer, scheduler, epoch, metrics, filepath):
     }
     torch.save(checkpoint, filepath)
 
-def load_last_checkpoint(checkpoint_dir):
-   """Load the last saved checkpoint from specified directory."""
-   # Find the latest checkpoint
-   checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith('.pt')]
-   if not checkpoints:
-       raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
-       
-   # Extract epoch numbers and find max
-   epochs = [int(f.split('_')[-1].replace('.pt', '')) for f in checkpoints]
-   last_epoch = max(epochs)
-   
-   checkpoint_path = os.path.join(checkpoint_dir, f'model_epoch_{last_epoch}.pt')
-   checkpoint = torch.load(checkpoint_path)
-   
-   return checkpoint, last_epoch
+def load_last_checkpoint(checkpoint_dir, model_type='mamba'):
+    """Load the last saved checkpoint for either model type.
+    
+    Args:
+        checkpoint_dir: Directory containing checkpoints
+        model_type: Either 'mamba' or 'cnn'
+    """
+    try:
+        # Set prefix based on model type
+        prefix = 'model_epoch_'
+        
+        # Find checkpoint files
+        checkpoints = [f for f in os.listdir(checkpoint_dir) 
+                      if f.startswith(prefix) and f.endswith('.pt')]
+        
+        if not checkpoints:
+            raise FileNotFoundError(f"No {model_type} checkpoints found in {checkpoint_dir}")
+        
+        # Extract epoch numbers and find max
+        epochs = [int(f.split('_')[-1].replace('.pt', '')) for f in checkpoints]
+        last_epoch = max(epochs)
+        
+        checkpoint_path = os.path.join(checkpoint_dir, f'{prefix}{last_epoch}.pt')
+        
+        # Load checkpoint with device handling
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        
+        return checkpoint, last_epoch
+        
+    except Exception as e:
+        print(f"Error loading {model_type} checkpoint: {str(e)}")
+        print(f"Contents of {checkpoint_dir}:")
+        print(os.listdir(checkpoint_dir))
+        raise RuntimeError(f"Failed to load {model_type} checkpoint: {str(e)}")
 
 def evaluate_model(model, data_loader, criterion, device):
     """Evaluate model and return metrics."""
