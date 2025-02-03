@@ -9,7 +9,7 @@ from check_and_measure import evaluate_model, save_checkpoint, load_last_checkpo
 
 def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, device='cuda',
                 checkpoint_dir=None):
-    """Generic training function that works for both Mamba and CNN models."""
+    """Training function optimized for studying overfitting behaviors."""
     
     if checkpoint_dir is None:
         checkpoint_dir = f'{model_name}_checkpoints'
@@ -22,24 +22,23 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
         
     os.makedirs(checkpoint_dir, exist_ok=True)
     
-    # Common settings for both models
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+    # Increased learning rate and removed weight decay to encourage overfitting
+    optimizer = optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0)
     criterion = nn.CrossEntropyLoss()
     
+    # Modified scheduler with very gradual lr reduction
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode='max',
-        factor=0.5,
-        patience=50,
+        factor=0.9,  # Very gradual reduction
+        patience=200,  # Much longer patience
         verbose=True
     )
     
     # Training stability parameters
-    max_grad_norm = 1.0
+    max_grad_norm = 1.0  # Keep this to prevent complete instability
     best_accuracy = 0
-    patience = 100
-    patience_counter = 0
-    checkpoint_freq = 100
+    checkpoint_freq = 100  # Save checkpoints every 100 epochs
     
     metrics = {
         'train_losses': [], 'test_losses': [],
@@ -56,7 +55,7 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
         total_samples = 0
         train_confidences = []
         
-        for inputs, labels in tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}'):
+        for inputs, labels in train_loader:  # Removed tqdm progress bar
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             
@@ -64,7 +63,14 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
             loss = criterion(logits, labels)
             loss.backward()
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            # Monitor gradients for analysis
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            # Only print gradient warnings every 100 epochs
+            if (epoch + 1) % 100 == 0:
+                if grad_norm < 1e-4:
+                    print(f"Warning: Very small gradients detected: {grad_norm}")
+                elif grad_norm >= max_grad_norm:
+                    print(f"Warning: Large gradients detected: {grad_norm}")
             
             optimizer.step()
             
@@ -86,16 +92,11 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
         current_lr = optimizer.param_groups[0]['lr']
         scheduler.step(test_accuracy)
         
+        # Update metrics without early stopping
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            patience_counter = 0
             best_model_path = os.path.join(checkpoint_dir, f'{model_name}_best_model.pt')
             save_checkpoint(model, optimizer, scheduler, epoch, metrics, best_model_path)
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                print(f'Early stopping triggered after {epoch + 1} epochs')
-                break
         
         metrics['train_losses'].append(train_loss)
         metrics['test_losses'].append(test_loss)
@@ -107,10 +108,9 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
         metrics['epoch_train_confidences'].append(train_confidences)
         metrics['epoch_test_confidences'].append(test_confidences)
         
-        print(f'Epoch [{epoch+1}/{num_epochs}]')
-        print(f'Learning Rate: {current_lr:.6f}')
-        print(f'Train Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.2f}%, Confidence: {train_avg_confidence:.4f}')
-        print(f'Test Loss: {test_loss:.4f}, Accuracy: {test_accuracy:.2f}%, Confidence: {test_avg_confidence:.4f}')
+        # Print training progress only every 100 epochs
+        if (epoch + 1) % 100 == 0:
+            print(f'Epoch {epoch+1}/{num_epochs} | LR: {current_lr:.6f} | Train Acc: {train_accuracy:.1f}% | Test Acc: {test_accuracy:.1f}% | Gap: {train_accuracy - test_accuracy:.1f}%')  # Monitor overfitting
         
         if (epoch + 1) % checkpoint_freq == 0:
             checkpoint_path = os.path.join(checkpoint_dir, f'{model_name}_epoch_{epoch+1}.pt')
@@ -133,19 +133,20 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
 
 def continue_training(model, train_loader, test_loader, model_name, checkpoint_dir, target_epochs=2000, 
                      device='cuda'):
-    """Continue training from last checkpoint with consistent configuration."""
+    """Continue training from last checkpoint while maintaining overfitting conditions."""
     checkpoint, last_epoch = load_last_checkpoint(checkpoint_dir)
     
     model.load_state_dict(checkpoint['model_state_dict'])
     
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.01)
+    # Maintain same overfitting-friendly optimizer settings
+    optimizer = optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0)
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode='max',
-        factor=0.5,
-        patience=50,
+        factor=0.9,
+        patience=200,
         verbose=True
     )
     
@@ -170,8 +171,6 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
     criterion = nn.CrossEntropyLoss()
     max_grad_norm = 1.0
     best_accuracy = max(metrics['test_accuracies'])
-    patience = 100
-    patience_counter = 0
     checkpoint_freq = 100
     
     print(f"Continuing training from epoch {last_epoch} to {target_epochs}")
@@ -191,7 +190,12 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
             loss = criterion(logits, labels)
             loss.backward()
             
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            # Monitor gradients
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            if grad_norm < 1e-4:
+                print(f"Warning: Very small gradients detected: {grad_norm}")
+            elif grad_norm >= max_grad_norm:
+                print(f"Warning: Large gradients detected: {grad_norm}")
             
             optimizer.step()
             
@@ -215,14 +219,8 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
         
         if test_accuracy > best_accuracy:
             best_accuracy = test_accuracy
-            patience_counter = 0
             best_model_path = os.path.join(checkpoint_dir, f'{model_name}_best_model.pt')
             save_checkpoint(model, optimizer, scheduler, epoch, complete_metrics, best_model_path)
-        else:
-            patience_counter += 1
-            if patience_counter >= patience:
-                print(f'Early stopping triggered after {epoch + 1} epochs')
-                break
         
         complete_metrics['train_losses'].append(train_loss)
         complete_metrics['test_losses'].append(test_loss)
@@ -237,6 +235,7 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
         print(f'Learning Rate: {current_lr:.6f}')
         print(f'Train Loss: {train_loss:.4f}, Accuracy: {train_accuracy:.2f}%, Confidence: {train_avg_confidence:.4f}')
         print(f'Test Loss: {test_loss:.4f}, Accuracy: {test_accuracy:.2f}%, Confidence: {test_avg_confidence:.4f}')
+        print(f'Train-Test Accuracy Gap: {train_accuracy - test_accuracy:.2f}%')
         
         if (epoch + 1) % checkpoint_freq == 0:
             checkpoint_path = os.path.join(checkpoint_dir, f'{model_name}_epoch_{epoch+1}.pt')

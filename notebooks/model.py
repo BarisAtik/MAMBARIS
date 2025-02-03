@@ -182,31 +182,84 @@ class Mamba(nn.Module):
         
         return model
 
+class VisionEncoder(nn.Module):
+    def __init__(self, input_channels=3, hidden_dim=128, patch_size=4):
+        super().__init__()
+        self.patch_size = patch_size
+        
+        self.encoder = nn.Sequential(
+            # Initial patch embedding
+            nn.Conv2d(input_channels, hidden_dim, kernel_size=patch_size, stride=patch_size),
+            nn.LayerNorm([hidden_dim, 32 // patch_size, 32 // patch_size]),
+            nn.GELU(),
+            
+            # Additional spatial processing
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+            nn.LayerNorm([hidden_dim, 32 // patch_size, 32 // patch_size]),
+            nn.GELU(),
+        )
+        
+        # Positional embedding
+        self.pos_embed = nn.Parameter(
+            torch.zeros(1, (32 // patch_size) ** 2, hidden_dim)
+        )
+        nn.init.normal_(self.pos_embed, std=0.02)
+
+    def forward(self, x):
+        # Encode patches
+        x = self.encoder(x)
+        
+        # Convert to sequence
+        # Make dimension usage explicit
+        batch_size, channels, height, width = x.shape
+        x = x.reshape(batch_size, channels, height * width).transpose(1, 2)
+        
+        # Add positional embeddings
+        x = x + self.pos_embed
+        
+        return x
+
 class ImageMamba(nn.Module):
     def __init__(self, args: ModelArgs, num_classes: int):
         super().__init__()
         self.args = args
-        # Define conv layers
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=args.d_model, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=args.d_model, out_channels=args.d_model * 2, kernel_size=3, padding=1)
-        # Residual blocks
-        self.layers = nn.ModuleList([ImageResidualBlock(args) for _ in range(args.n_layer)])
-        # Normalization layer
-        self.norm_f = nn.BatchNorm2d(args.d_model * 2)
-        # Pooling and FC layers
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(args.d_model * 2, num_classes)
+        
+        # Vision encoder
+        self.vision_encoder = VisionEncoder(
+            input_channels=3,
+            hidden_dim=args.d_model,
+            patch_size=4
+        )
+        
+        # Mamba layers
+        self.layers = nn.ModuleList([
+            MambaBlock(args) for _ in range(args.n_layer)
+        ])
+        
+        # Layer norm
+        self.norm = RMSNorm(args.d_model)
+        
+        # Classification head
+        self.fc = nn.Linear(args.d_model, num_classes)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
+        # Encode image to sequence
+        x = self.vision_encoder(x)
+        
+        # Process through Mamba layers
         for layer in self.layers:
             x = layer(x)
-        x = self.norm_f(x)
-        x = self.pool(x)
-        x = x.view(x.size(0), -1)
+        
+        # Global average pooling
+        x = x.mean(dim=1)
+        
+        # Final layer norm
+        x = self.norm(x)
+        
+        # Classification
         logits = self.fc(x)
         probabilities = F.softmax(logits, dim=-1)
+        
         return logits, probabilities
     @staticmethod
     def from_pretrained(pretrained_model_name: str):
