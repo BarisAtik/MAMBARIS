@@ -1,5 +1,6 @@
 model_checkpoints/
-mamba_checkpoints/
+mamba_checkpoints_55hrs/
+mamba_checkpoints_1/
 cnn_checkpoints/
 model_checkpoints_ext_old/
 model_checkpoints_extended/

@@ -7,6 +7,9 @@ import json
 from tqdm import tqdm
 from check_and_measure import evaluate_model, save_checkpoint, load_last_checkpoint
 
+if 'COLAB_GPU' in os.environ:
+    from google.colab import files  # Only when using google colab GPU's
+
 def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, device='cuda',
                 checkpoint_dir=None):
     """Training function optimized for studying overfitting behaviors."""
@@ -113,9 +116,11 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
             print(f'Epoch {epoch+1}/{num_epochs} | LR: {current_lr:.6f} | Train Acc: {train_accuracy:.1f}% | Test Acc: {test_accuracy:.1f}% | Gap: {train_accuracy - test_accuracy:.1f}%')  # Monitor overfitting
         
         if (epoch + 1) % checkpoint_freq == 0:
+            # Save checkpoint
             checkpoint_path = os.path.join(checkpoint_dir, f'{model_name}_epoch_{epoch+1}.pt')
             save_checkpoint(model, optimizer, scheduler, epoch, metrics, checkpoint_path)
             
+            # Create JSON metrics dictionary
             json_metrics = {
                 'train_losses': [float(x) for x in metrics['train_losses']],
                 'test_losses': [float(x) for x in metrics['test_losses']],
@@ -126,8 +131,22 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
                 'learning_rates': [float(x) for x in metrics['learning_rates']],
                 'current_epoch': epoch + 1
             }
-            with open(os.path.join(checkpoint_dir, 'training_metrics.json'), 'w') as f:
+            
+            # Save metrics JSON
+            metrics_path = os.path.join(checkpoint_dir, 'training_metrics.json')
+            with open(metrics_path, 'w') as f:
                 json.dump(json_metrics, f, indent=4)
+
+            # Download if in Colab
+            if 'COLAB_GPU' in os.environ:
+                try:
+                    files.download(checkpoint_path)
+                    files.download(metrics_path)
+                    print(f"Downloaded checkpoint and metrics for epoch {epoch+1}")
+                except Exception as e:
+                    print(f"Warning: Could not download files: {str(e)}")
+            else:
+                print(f"Saved checkpoint and metrics locally for epoch {epoch+1}")
     
     return metrics
 
