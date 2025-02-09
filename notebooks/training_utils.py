@@ -153,7 +153,8 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
 def continue_training(model, train_loader, test_loader, model_name, checkpoint_dir, target_epochs=2000, 
                      device='cuda'):
     """Continue training from last checkpoint while maintaining overfitting conditions."""
-    checkpoint, last_epoch = load_last_checkpoint(checkpoint_dir)
+    # Pass model_name as model_type to load_last_checkpoint
+    checkpoint, last_epoch = load_last_checkpoint(checkpoint_dir, model_type=model_name)
     
     model.load_state_dict(checkpoint['model_state_dict'])
     

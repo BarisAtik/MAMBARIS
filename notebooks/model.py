@@ -34,7 +34,42 @@ import math
 from dataclasses import dataclass
 from typing import Union
 
-# Make this an import soon too
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class BasicCNN(nn.Module):
+    def __init__(self):
+        super(BasicCNN, self).__init__()
+        # Keep the original channel counts
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        
+        # Global average pooling and final dense layer
+        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(64, 10)
+        
+    def forward(self, x):
+        # First block
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.max_pool2d(x, 2)
+        
+        # Second block
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.max_pool2d(x, 2)
+        
+        # Global average pooling
+        x = self.avg_pool(x)
+        x = x.view(x.size(0), -1)
+        
+        # Final classification
+        logits = self.fc(x)
+        probabilities = F.softmax(logits, dim=-1)
+        
+        return logits, probabilities
 class SmallerComparableCNN(nn.Module):
     def __init__(self):
         super(SmallerComparableCNN, self).__init__()
