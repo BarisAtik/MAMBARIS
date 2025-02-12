@@ -41,16 +41,19 @@ import torch.nn.functional as F
 class BasicCNN(nn.Module):
     def __init__(self):
         super(BasicCNN, self).__init__()
-        # Keep the original channel counts
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
+        # First convolutional block
+        # Modest increase from 32 to 48 channels
+        self.conv1 = nn.Conv2d(3, 48, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(48)
         
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
+        # Second convolutional block
+        # Modest increase from 64 to 96 channels
+        self.conv2 = nn.Conv2d(48, 96, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(96)
         
         # Global average pooling and final dense layer
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(64, 10)
+        self.fc = nn.Linear(96, 10)
         
     def forward(self, x):
         # First block
@@ -65,24 +68,25 @@ class BasicCNN(nn.Module):
         x = self.avg_pool(x)
         x = x.view(x.size(0), -1)
         
-        # Final classification
+        # Classification layer
         logits = self.fc(x)
         probabilities = F.softmax(logits, dim=-1)
         
         return logits, probabilities
-class SmallerComparableCNN(nn.Module):
+class BeterCNN(nn.Module):
     def __init__(self):
-        super(SmallerComparableCNN, self).__init__()
-        # Reduced initial channels and total layers
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)  # Reduced from 64 to 32
-        self.bn1 = nn.BatchNorm2d(32)
+        super(BeterCNN, self).__init__()
+        # First convolutional block - kept same
+        self.conv1 = nn.Conv2d(3, 48, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(48)
         
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)  # Reduced from 128 to 64
-        self.bn2 = nn.BatchNorm2d(64)
+        # Second convolutional block - slightly increased
+        self.conv2 = nn.Conv2d(48, 128, kernel_size=3, padding=1)  # Just increased from 96 to 128
+        self.bn2 = nn.BatchNorm2d(128)
         
         # Global average pooling and final dense layer
         self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(64, 10)  # Changed input features to match last conv layer
+        self.fc = nn.Linear(128, 10)  # Adjusted for new channel count
         
     def forward(self, x):
         # First block
@@ -97,7 +101,7 @@ class SmallerComparableCNN(nn.Module):
         x = self.avg_pool(x)
         x = x.view(x.size(0), -1)
         
-        # Final classification
+        # Classification layer
         logits = self.fc(x)
         probabilities = F.softmax(logits, dim=-1)
         

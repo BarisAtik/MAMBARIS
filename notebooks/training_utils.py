@@ -111,8 +111,8 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
         metrics['epoch_train_confidences'].append(train_confidences)
         metrics['epoch_test_confidences'].append(test_confidences)
         
-        # Print training progress only every 100 epochs
-        if (epoch + 1) % 100 == 0:
+        # Print training progress only every 3 epochs
+        if (epoch + 1) % 3 == 0:
             print(f'Epoch {epoch+1}/{num_epochs} | LR: {current_lr:.6f} | Train Acc: {train_accuracy:.1f}% | Test Acc: {test_accuracy:.1f}% | Gap: {train_accuracy - test_accuracy:.1f}%')  # Monitor overfitting
         
         if (epoch + 1) % checkpoint_freq == 0:
