@@ -1,0 +1,17 @@
+{
+    "inference_attack_susceptibility": {
+        "mamba": {
+            "mean_gap": -0.0012528785999999959,
+            "std_gap": 0.00868456108648308
+        },
+        "cnn": {
+            "mean_gap": 0.04847909040000007,
+            "std_gap": 0.002148434396472327
+        }
+    },
+    "plots_generated": [
+        "model_comparisons.png",
+        "inference_attack_susceptibility.png"
+    ],
+    "timestamp": "2025-01-28 21:23:26.745878"
+}
