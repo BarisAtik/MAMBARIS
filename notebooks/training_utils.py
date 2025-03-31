@@ -26,7 +26,7 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
     os.makedirs(checkpoint_dir, exist_ok=True)
     
     # Increased learning rate and removed weight decay to encourage overfitting
-    optimizer = optim.AdamW(model.parameters(), lr=5e-3, weight_decay=0)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
     criterion = nn.CrossEntropyLoss()
     
     # Modified scheduler with very gradual lr reduction
@@ -39,9 +39,11 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
     )
     
     # Training stability parameters
-    max_grad_norm = 1.0  # Keep this to prevent complete instability
+    max_grad_norm = 1.0  # For large gradients
+    min_grad_norm = 1e-4  # Threshold for small gradients
+    small_grad_scale = 10.0  # Scaling factor for small gradients
     best_accuracy = 0
-    checkpoint_freq = 20  # Save checkpoints every 100 epochs
+    checkpoint_freq = 2  # Save checkpoints every 100 epochs
     
     metrics = {
         'train_losses': [], 'test_losses': [],
@@ -69,6 +71,30 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
             # Monitor gradients for analysis
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             # Only print gradient warnings every 100 epochs
+
+            total_norm = 0.0
+            for p in model.parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** (1. / 2)
+            
+            # Handle small gradients by scaling them up
+            if total_norm < min_grad_norm and total_norm > 0:
+                print(f"Warning: Very small gradients detected: {total_norm}, scaling up")
+                scale_factor = min(small_grad_scale, min_grad_norm / total_norm)
+                for p in model.parameters():
+                    if p.grad is not None:
+                        p.grad.data.mul_(scale_factor)
+            
+            # Now handle large gradients via clipping (existing code)
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            
+            # Only print gradient warnings every few epochs
+            if (epoch + 1) % 10 == 0:  # Increased frequency from 100 to 10
+                if grad_norm >= max_grad_norm:
+                    print(f"Warning: Large gradients detected: {grad_norm}, clipped")
+
             if (epoch + 1) % 100 == 0:
                 if grad_norm < 1e-4:
                     print(f"Warning: Very small gradients detected: {grad_norm}")
@@ -138,15 +164,15 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
                 json.dump(json_metrics, f, indent=4)
 
             # Download if in Colab
-            if 'COLAB_GPU' in os.environ:
-                try:
-                    files.download(checkpoint_path)
-                    files.download(metrics_path)
-                    print(f"Downloaded checkpoint and metrics for epoch {epoch+1}")
-                except Exception as e:
-                    print(f"Warning: Could not download files: {str(e)}")
-            else:
-                print(f"Saved checkpoint and metrics locally for epoch {epoch+1}")
+            #if 'COLAB_GPU' in os.environ:
+              #  try:
+              #      files.download(checkpoint_path)
+               #     files.download(metrics_path)
+               #     print(f"Downloaded checkpoint and metrics for epoch {epoch+1}")
+              #  except Exception as e:
+            #        print(f"Warning: Could not download files: {str(e)}")
+            #else:
+              #  print(f"Saved checkpoint and metrics locally for epoch {epoch+1}")
     
     return metrics
 
@@ -191,7 +217,7 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
     criterion = nn.CrossEntropyLoss()
     max_grad_norm = 1.0
     best_accuracy = max(metrics['test_accuracies'])
-    checkpoint_freq = 100
+    checkpoint_freq = 2
     
     print(f"Continuing training from epoch {last_epoch} to {target_epochs}")
     
