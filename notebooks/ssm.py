@@ -17,20 +17,20 @@ class ModelArgs:
     pad_vocab_size_multiple: int = 8
     conv_bias: bool = True
     bias: bool = False
-    seq_len: int = 32*32  # Default sequence length
-   
+    seq_len: int = 196  # Changed from 256 (for CIFAR-10) to 196 for MNIST (14×14 after downsampling)
+    
     def __post_init__(self):
         self.d_inner = int(self.expand * self.d_model)
-       
+        
         if self.dt_rank == 'auto':
             self.dt_rank = math.ceil(self.d_model / 16)
-           
+        
         if self.vocab_size % self.pad_vocab_size_multiple != 0:
             self.vocab_size += (self.pad_vocab_size_multiple
-                                - self.vocab_size % self.pad_vocab_size_multiple)
-       
-        # Ensure seq_len is set to 256 for CIFAR-10
-        self.seq_len = 256  # For CIFAR-10: (32//2 * 32//2) after initial conv
+                              - self.vocab_size % self.pad_vocab_size_multiple)
+        
+        # Ensure seq_len is set properly for MNIST 
+        self.seq_len = 196  # For MNIST: (28//2 * 28//2) after initial conv
 class FastMambaBlock(nn.Module):
     def __init__(
         self,
@@ -124,7 +124,7 @@ class FastImageMamba(nn.Module):
         
         # Initial image processing with smaller channels
         self.conv1 = nn.Sequential(
-            nn.Conv2d(3, args.d_model//2, kernel_size=3, padding=1),
+            nn.Conv2d(1, args.d_model//2, kernel_size=3, padding=1),  # Change 3 to 1 for MNIST
             nn.BatchNorm2d(args.d_model//2),
             nn.GELU(),
             nn.Conv2d(args.d_model//2, args.d_model, kernel_size=3, padding=1),
@@ -140,7 +140,7 @@ class FastImageMamba(nn.Module):
             nn.Dropout(0.1)  # Add dropout for regularization
         )
         
-        # Mamba layers with residual connections
+        # In FastImageMamba.__init__
         self.layers = nn.ModuleList([
             nn.Sequential(
                 FastMambaBlock(
@@ -149,7 +149,7 @@ class FastImageMamba(nn.Module):
                     d_conv=args.d_conv,
                     expand=args.expand,
                     dt_rank=args.dt_rank,
-                    seq_len=256
+                    seq_len=196  # Changed from 256 to 196 for MNIST
                 ),
                 nn.LayerNorm(args.d_model),
                 nn.Dropout(0.1)

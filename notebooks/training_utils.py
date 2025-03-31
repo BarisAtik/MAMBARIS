@@ -41,7 +41,7 @@ def train_model(model, train_loader, test_loader, model_name, num_epochs=2000, d
     # Training stability parameters
     max_grad_norm = 1.0  # Keep this to prevent complete instability
     best_accuracy = 0
-    checkpoint_freq = 100  # Save checkpoints every 100 epochs
+    checkpoint_freq = 20  # Save checkpoints every 100 epochs
     
     metrics = {
         'train_losses': [], 'test_losses': [],
