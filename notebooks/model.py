@@ -6,12 +6,11 @@ from dataclasses import dataclass
 from einops import rearrange, repeat, einsum
 import math
 from typing import Union
-
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
         # First convolutional block - increased capacity from 32 to 48 filters
-        self.conv1 = nn.Conv2d(3, 48, kernel_size=3, padding=1)
+        self.conv1 = nn.Conv2d(1, 48, kernel_size=3, padding=1)  # Change 3 to 1 for MNIST
         self.bn1 = nn.BatchNorm2d(48)
         
         # Second convolutional block - increased capacity from 64 to 128 filters

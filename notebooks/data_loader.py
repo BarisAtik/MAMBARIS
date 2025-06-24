@@ -1,9 +1,55 @@
 import torch
 import numpy as np
 import torchvision.transforms as transforms
-
 from torch.utils.data import DataLoader, TensorDataset
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, MNIST  # Need to import MNIST here
+
+def load_mnist(batch_size=64, seed=42):
+    # Set seeds for reproducibility
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,))  # MNIST mean and std
+    ])
+    
+    train_dataset = MNIST(root='./data', train=True, download=True, transform=transform)
+    test_dataset = MNIST(root='./data', train=False, download=True, transform=transform)
+    
+    # Convert to tensors with consistent shape
+    X_train = torch.stack([sample[0] for sample in train_dataset])
+    Y_train = torch.tensor([sample[1] for sample in train_dataset], dtype=torch.long)
+    X_test = torch.stack([sample[0] for sample in test_dataset])
+    Y_test = torch.tensor([sample[1] for sample in test_dataset], dtype=torch.long)
+    
+    # Create datasets
+    train_tensor_dataset = TensorDataset(X_train, Y_train)
+    test_tensor_dataset = TensorDataset(X_test, Y_test)
+    
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_tensor_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(seed)
+    )
+    
+    test_loader = DataLoader(
+        test_tensor_dataset,
+        batch_size=batch_size,
+        shuffle=False  # No need to shuffle test data
+    )
+    
+    return train_loader, test_loader, X_train, X_test, Y_train, Y_test
+
+def get_mnist_class_names():
+    return ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']  # MNIST classes
 
 def load_cifar10(batch_size=64, seed=42):
     """
