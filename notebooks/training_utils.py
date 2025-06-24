@@ -227,8 +227,9 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
         running_correct = 0
         total_samples = 0
         train_confidences = []
+        print (f"Epoch {epoch+1}/{target_epochs}")
         
-        for inputs, labels in tqdm(train_loader, desc=f'Epoch [{epoch+1}/{target_epochs}]'):
+        for inputs, labels in train_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             
@@ -238,10 +239,6 @@ def continue_training(model, train_loader, test_loader, model_name, checkpoint_d
             
             # Monitor gradients
             grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-            if grad_norm < 1e-4:
-                print(f"Warning: Very small gradients detected: {grad_norm}")
-            elif grad_norm >= max_grad_norm:
-                print(f"Warning: Large gradients detected: {grad_norm}")
             
             optimizer.step()
             
